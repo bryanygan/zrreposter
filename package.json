@@ -1,0 +1,19 @@
+{
+  "name": "zrreposter",
+  "version": "1.0.0",
+  "description": "Discord bot to repost forum listings between servers",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
