@@ -183,7 +183,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-client.once('ready', async (c) => {
+client.once('clientReady', async (c) => {
   console.log(`Logged in as ${c.user.tag}`);
   // Auto-register slash commands on startup so hosts like Railway need no
   // separate deploy step. Set REGISTER_COMMANDS_ON_START=false to skip.

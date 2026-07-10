@@ -43,15 +43,29 @@ function uniqueGuildIds() {
 }
 
 // Register all commands as guild commands (instant availability) in every guild.
+// Per-guild failures are logged and skipped so one un-invited server does not
+// block registration in the others. Returns which guilds succeeded/failed.
 async function registerCommands(token, appId) {
   if (!token) throw new Error('Missing DISCORD_BOT_TOKEN');
   if (!appId) throw new Error('Missing DISCORD_APPLICAION_ID');
   const rest = new REST({ version: '10' }).setToken(token);
   const body = buildCommands();
+  const registered = [];
+  const failed = [];
   for (const guildId of uniqueGuildIds()) {
-    await rest.put(Routes.applicationGuildCommands(appId, guildId), { body });
-    console.log(`Registered ${body.length} command(s) in guild ${guildId}.`);
+    try {
+      await rest.put(Routes.applicationGuildCommands(appId, guildId), { body });
+      console.log(`Registered ${body.length} command(s) in guild ${guildId}.`);
+      registered.push(guildId);
+    } catch (err) {
+      failed.push(guildId);
+      console.error(
+        `Failed to register commands in guild ${guildId}: ${err.message}. ` +
+          'Invite the bot to this server with the "applications.commands" scope.'
+      );
+    }
   }
+  return { registered, failed };
 }
 
 module.exports = { buildCommands, uniqueGuildIds, registerCommands };
