@@ -15,17 +15,63 @@ const {
   classifyThreads,
   collectAttachments,
   chunkAttachments,
+  uploadInBatches,
   buildForumThreadPayload,
   buildPreview,
 } = require('./lib/repost');
 
-// Only these Discord user IDs may run the commands.
-const ALLOWED_USER_IDS = new Set(['1108031578208219326', '745694160002089130']);
+// Only these Discord user IDs may run the commands. Override via the
+// ALLOWED_USER_IDS env var (comma-separated) without changing code.
+const DEFAULT_ALLOWED_USER_IDS = ['1108031578208219326', '745694160002089130'];
+const ALLOWED_USER_IDS = new Set(
+  (process.env.ALLOWED_USER_IDS
+    ? process.env.ALLOWED_USER_IDS.split(',')
+    : DEFAULT_ALLOWED_USER_IDS
+  )
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 
-// Keep each upload safely under Discord's per-message limit (25 MB base tier).
-// Override with MAX_UPLOAD_BYTES if the destination server has a higher limit.
-const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 24 * 1024 * 1024;
+// Target upload size per message. Discord's non-boosted limit is ~10 MB, so we
+// aim just under it; uploadInBatches self-corrects if a batch is still too big.
+// Raise MAX_UPLOAD_BYTES if the destination server is boosted.
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 9 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
+
+// Repost one source post: create the forum thread (title + text + as many
+// leading images as fit, shrinking on 413), then upload remaining images as
+// replies. Returns the number of attachments skipped as un-uploadable.
+async function repostItem(destForum, item) {
+  const chunks = chunkAttachments(item.attachments, MAX_UPLOAD_BYTES, MAX_FILES_PER_MESSAGE);
+  const flat = chunks.flat();
+
+  let firstCount = (chunks[0] ?? []).length;
+  let thread = null;
+  while (thread === null) {
+    const files = flat.slice(0, firstCount).map((a) => a.url);
+    try {
+      thread = await destForum.threads.create(
+        buildForumThreadPayload(item.title, item.content, files)
+      );
+    } catch (err) {
+      if ((err.code === 40005 || err.status === 413) && firstCount > 0) {
+        firstCount = Math.floor(firstCount / 2);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  let skipped = 0;
+  const remaining = flat.slice(firstCount);
+  for (const chunk of chunkAttachments(remaining, MAX_UPLOAD_BYTES, MAX_FILES_PER_MESSAGE)) {
+    skipped += await uploadInBatches(
+      (files) => thread.send({ files }),
+      chunk.map((a) => a.url)
+    );
+  }
+  return skipped;
+}
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
@@ -161,21 +207,10 @@ async function handleBulkRepost(interaction) {
 
   let copied = 0;
   let errors = 0;
+  let skippedAttachments = 0;
   for (const item of items) {
     try {
-      // Split attachments into groups that each fit Discord's per-message
-      // limits: the first group goes on the forum post, the rest as replies.
-      const chunks = chunkAttachments(
-        item.attachments,
-        MAX_UPLOAD_BYTES,
-        MAX_FILES_PER_MESSAGE
-      );
-      const firstFiles = (chunks[0] ?? []).map((a) => a.url);
-      const payload = buildForumThreadPayload(item.title, item.content, firstFiles);
-      const thread = await destForum.threads.create(payload);
-      for (const chunk of chunks.slice(1)) {
-        await thread.send({ files: chunk.map((a) => a.url) });
-      }
+      skippedAttachments += await repostItem(destForum, item);
       copied++;
     } catch (err) {
       console.error(`Failed to repost "${item.title}":`, err.message);
@@ -183,10 +218,14 @@ async function handleBulkRepost(interaction) {
     }
   }
 
+  const skippedNote =
+    skippedAttachments > 0
+      ? ` (${skippedAttachments} oversized image(s) skipped)`
+      : '';
   await interaction.editReply({
     content:
       `Done. **${copied}** copied, **${duplicates.length}** skipped as duplicate(s), ` +
-      `**${errors}** error(s).`,
+      `**${errors}** error(s).${skippedNote}`,
     components: [],
   });
 }

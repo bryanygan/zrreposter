@@ -21,6 +21,14 @@ Discord bot that copies forum listings between servers with `/bulkrepost`
 Optionally add `include_archived:true` to also scan archived posts.
 The bot shows a preview of what will be copied and waits for you to click **Confirm** (60s timeout), then reports how many were copied / skipped / errored.
 
+Only authorized users may run the commands (see `ALLOWED_USER_IDS` below).
+
+## Optional environment variables
+
+- `ALLOWED_USER_IDS` — comma-separated Discord user IDs allowed to run the commands. If unset, defaults to the two built-in IDs. Example: `ALLOWED_USER_IDS=111...,222...`
+- `MAX_UPLOAD_BYTES` — target max bytes per uploaded message. Defaults to ~9 MB (safe for non-boosted servers). Raise it if the destination server is boosted (e.g. `52428800` for 50 MB). The bot self-corrects on oversized batches regardless.
+- `REGISTER_COMMANDS_ON_START` — set to `false` to skip auto-registering slash commands on startup.
+
 ## Deploy on Railway
 
 1. Push this repo to GitHub and create a Railway project from it.
