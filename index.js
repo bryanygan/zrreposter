@@ -39,6 +39,9 @@ const ALLOWED_USER_IDS = new Set(
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 9.5 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
 
+// Timezone used to interpret date filters (e.g. "07/07"). Override with TIMEZONE.
+const TIMEZONE = process.env.TIMEZONE || 'America/New_York';
+
 function fileNameFromUrl(url) {
   try {
     const path = new URL(url).pathname;
@@ -143,7 +146,7 @@ async function handleBulkRepost(interaction) {
 
   let cutoff;
   try {
-    cutoff = parseSince(interaction.options.getString('posted_after'));
+    cutoff = parseSince(interaction.options.getString('posted_after'), Date.now(), TIMEZONE);
   } catch (err) {
     await interaction.editReply(err.message);
     return;
@@ -197,7 +200,11 @@ async function handleBulkRepost(interaction) {
 
   const cutoffNote =
     cutoff !== null
-      ? `Filtering to posts created after ${new Date(cutoff).toISOString().slice(0, 10)} (UTC).\n`
+      ? `Filtering to posts created after ${new Intl.DateTimeFormat('en-US', {
+          timeZone: TIMEZONE,
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }).format(new Date(cutoff))} (${TIMEZONE}).\n`
       : '';
   const previewText =
     cutoffNote +
