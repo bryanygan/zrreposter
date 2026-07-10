@@ -13,10 +13,19 @@ const { registerCommands } = require('./commands');
 const {
   normalizeTitle,
   classifyThreads,
-  collectAttachmentUrls,
+  collectAttachments,
+  chunkAttachments,
   buildForumThreadPayload,
   buildPreview,
 } = require('./lib/repost');
+
+// Only these Discord user IDs may run the commands.
+const ALLOWED_USER_IDS = new Set(['1108031578208219326', '745694160002089130']);
+
+// Keep each upload safely under Discord's per-message limit (25 MB base tier).
+// Override with MAX_UPLOAD_BYTES if the destination server has a higher limit.
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 24 * 1024 * 1024;
+const MAX_FILES_PER_MESSAGE = 10;
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
@@ -49,6 +58,11 @@ async function fetchDestinationTitleSet(forumChannel) {
 
 async function handleBulkRepost(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (!ALLOWED_USER_IDS.has(interaction.user.id)) {
+    await interaction.editReply('You are not authorized to use this command.');
+    return;
+  }
 
   const fromName = interaction.options.getString('from_server', true);
   const toName = interaction.options.getString('to_server', true);
@@ -88,12 +102,12 @@ async function handleBulkRepost(interaction) {
     } catch {
       starter = null;
     }
-    const attachmentUrls = collectAttachmentUrls(starter);
+    const attachments = collectAttachments(starter);
     items.push({
       title: thread.name,
       content: starter ? starter.content : '',
-      attachmentUrls,
-      attachmentCount: attachmentUrls.length,
+      attachments,
+      attachmentCount: attachments.length,
     });
   }
 
@@ -149,11 +163,22 @@ async function handleBulkRepost(interaction) {
   let errors = 0;
   for (const item of items) {
     try {
-      const payload = buildForumThreadPayload(item.title, item.content, item.attachmentUrls);
-      await destForum.threads.create(payload);
+      // Split attachments into groups that each fit Discord's per-message
+      // limits: the first group goes on the forum post, the rest as replies.
+      const chunks = chunkAttachments(
+        item.attachments,
+        MAX_UPLOAD_BYTES,
+        MAX_FILES_PER_MESSAGE
+      );
+      const firstFiles = (chunks[0] ?? []).map((a) => a.url);
+      const payload = buildForumThreadPayload(item.title, item.content, firstFiles);
+      const thread = await destForum.threads.create(payload);
+      for (const chunk of chunks.slice(1)) {
+        await thread.send({ files: chunk.map((a) => a.url) });
+      }
       copied++;
     } catch (err) {
-      console.error(`Failed to repost "${item.title}":`, err);
+      console.error(`Failed to repost "${item.title}":`, err.message);
       errors++;
     }
   }
