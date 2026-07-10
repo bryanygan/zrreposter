@@ -18,7 +18,10 @@ Discord bot that copies forum listings between servers with `/bulkrepost`
 - `/bulkrepost from_server:<name> to_server:<name>` — options: `closetclearout`, `zrserver`.
 - `/testbulkrepost from_server:<name> to_server:<name>` — options: `replinks`, `prinsale`, `zrserver`, `closetclearout`.
 
-Optionally add `include_archived:true` to also scan archived posts.
+Optional flags:
+- `include_archived:true` — also scan archived posts.
+- `posted_after:<value>` — only repost posts created after this point. Accepts a duration relative to now (`50h`, `2d`, `90 min`, `1w`) or a date (`07/07`, `07/07/2025`, `2026-07-07`, interpreted as UTC midnight).
+
 The bot shows a preview of what will be copied and waits for you to click **Confirm** (60s timeout), then reports how many were copied / skipped / errored.
 
 Only authorized users may run the commands (see `ALLOWED_USER_IDS` below).

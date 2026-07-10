@@ -27,11 +27,11 @@ test('to_server choices match from_server choices for each command', () => {
   }
 });
 
-test('every command exposes from_server, to_server, include_archived in order', () => {
+test('every command exposes its options in order', () => {
   for (const cmd of buildCommands()) {
     assert.deepStrictEqual(
       cmd.options.map((o) => o.name),
-      ['from_server', 'to_server', 'include_archived']
+      ['from_server', 'to_server', 'include_archived', 'posted_after']
     );
   }
 });

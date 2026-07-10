@@ -33,6 +33,12 @@ function buildCommands() {
           .setDescription('Also scan archived posts (default: false)')
           .setRequired(false)
       )
+      .addStringOption((opt) =>
+        opt
+          .setName('posted_after')
+          .setDescription('Only repost posts created after this, e.g. 50h, 2d, or 07/07')
+          .setRequired(false)
+      )
       .toJSON();
   });
 }

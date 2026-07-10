@@ -12,6 +12,7 @@ const { SERVERS, COMMANDS } = require('./config');
 const { registerCommands } = require('./commands');
 const {
   normalizeTitle,
+  parseSince,
   classifyThreads,
   collectAttachments,
   uploadInBatches,
@@ -140,6 +141,14 @@ async function handleBulkRepost(interaction) {
   const toName = interaction.options.getString('to_server', true);
   const includeArchived = interaction.options.getBoolean('include_archived') ?? false;
 
+  let cutoff;
+  try {
+    cutoff = parseSince(interaction.options.getString('posted_after'));
+  } catch (err) {
+    await interaction.editReply(err.message);
+    return;
+  }
+
   if (fromName === toName) {
     await interaction.editReply('Source and destination servers must be different.');
     return;
@@ -161,7 +170,10 @@ async function handleBulkRepost(interaction) {
     return;
   }
 
-  const sourceThreads = await fetchSourceThreads(sourceForum, includeArchived);
+  let sourceThreads = await fetchSourceThreads(sourceForum, includeArchived);
+  if (cutoff !== null) {
+    sourceThreads = sourceThreads.filter((t) => t.createdTimestamp >= cutoff);
+  }
   const destTitles = await fetchDestinationTitleSet(destForum);
   const { toRepost, duplicates } = classifyThreads(sourceThreads, destTitles);
 
@@ -183,10 +195,16 @@ async function handleBulkRepost(interaction) {
     });
   }
 
-  const previewText = buildPreview(
-    items.map((i) => ({ title: i.title, attachmentCount: i.attachmentCount })),
-    duplicates.length
-  );
+  const cutoffNote =
+    cutoff !== null
+      ? `Filtering to posts created after ${new Date(cutoff).toISOString().slice(0, 10)} (UTC).\n`
+      : '';
+  const previewText =
+    cutoffNote +
+    buildPreview(
+      items.map((i) => ({ title: i.title, attachmentCount: i.attachmentCount })),
+      duplicates.length
+    );
 
   if (items.length === 0) {
     await interaction.editReply(previewText);
