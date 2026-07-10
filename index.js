@@ -14,11 +14,11 @@ const {
   normalizeTitle,
   classifyThreads,
   collectAttachments,
-  chunkAttachments,
   uploadInBatches,
   buildForumThreadPayload,
   buildPreview,
 } = require('./lib/repost');
+const { compressToFit } = require('./lib/images');
 
 // Only these Discord user IDs may run the commands. Override via the
 // ALLOWED_USER_IDS env var (comma-separated) without changing code.
@@ -32,45 +32,71 @@ const ALLOWED_USER_IDS = new Set(
     .filter(Boolean)
 );
 
-// Target upload size per message. Discord's non-boosted limit is ~10 MB, so we
-// aim just under it; uploadInBatches self-corrects if a batch is still too big.
-// Raise MAX_UPLOAD_BYTES if the destination server is boosted.
-const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 9 * 1024 * 1024;
+// Target upload size per message. Discord's non-boosted per-message limit is
+// ~10 MB, so we aim just under it. Raise MAX_UPLOAD_BYTES if the destination
+// server is boosted (Tier 2 = 50 MB, Tier 3 = 100 MB) for higher image quality.
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES) || 9.5 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 10;
 
-// Repost one source post: create the forum thread (title + text + as many
-// leading images as fit, shrinking on 413), then upload remaining images as
-// replies. Returns the number of attachments skipped as un-uploadable.
-async function repostItem(destForum, item) {
-  const chunks = chunkAttachments(item.attachments, MAX_UPLOAD_BYTES, MAX_FILES_PER_MESSAGE);
-  const flat = chunks.flat();
+function fileNameFromUrl(url) {
+  try {
+    const path = new URL(url).pathname;
+    return decodeURIComponent(path.slice(path.lastIndexOf('/') + 1)) || 'file';
+  } catch {
+    return 'file';
+  }
+}
 
-  let firstCount = (chunks[0] ?? []).length;
-  let thread = null;
-  while (thread === null) {
-    const files = flat.slice(0, firstCount).map((a) => a.url);
+// Download a source post's attachments as buffers, tagging which are images.
+// Attachments that fail to download are skipped and counted.
+async function downloadAttachments(item) {
+  const downloaded = [];
+  let skipped = 0;
+  for (const a of item.attachments) {
     try {
-      thread = await destForum.threads.create(
-        buildForumThreadPayload(item.title, item.content, files)
-      );
+      const res = await fetch(a.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const type = a.contentType || res.headers.get('content-type') || '';
+      downloaded.push({
+        buffer,
+        name: a.name || fileNameFromUrl(a.url),
+        isImage: type.startsWith('image/'),
+      });
     } catch (err) {
-      if ((err.code === 40005 || err.status === 413) && firstCount > 0) {
-        firstCount = Math.floor(firstCount / 2);
-        continue;
-      }
-      throw err;
+      console.error(`Could not download an attachment for "${item.title}": ${err.message}`);
+      skipped++;
     }
   }
+  return { downloaded, skipped };
+}
 
-  let skipped = 0;
-  const remaining = flat.slice(firstCount);
-  for (const chunk of chunkAttachments(remaining, MAX_UPLOAD_BYTES, MAX_FILES_PER_MESSAGE)) {
-    skipped += await uploadInBatches(
-      (files) => thread.send({ files }),
-      chunk.map((a) => a.url)
+// Repost one source post into the destination forum. Images are compressed only
+// as needed so that all attachments fit in the single initial thread message.
+// Returns the number of attachments skipped (failed download or un-shrinkable).
+async function repostItem(destForum, item) {
+  const { downloaded, skipped } = await downloadAttachments(item);
+  const { files, fits } = await compressToFit(downloaded, MAX_UPLOAD_BYTES);
+
+  if (files.length === 0 || (fits && files.length <= MAX_FILES_PER_MESSAGE)) {
+    await destForum.threads.create(
+      buildForumThreadPayload(item.title, item.content, files)
     );
+    return skipped;
   }
-  return skipped;
+
+  // Rare fallback: still too large for one message (e.g. a big video) or more
+  // than 10 attachments. Create the post with text, then upload the rest as
+  // replies, splitting on 413 and skipping anything that still won't fit.
+  const thread = await destForum.threads.create(
+    buildForumThreadPayload(item.title, item.content, [])
+  );
+  let extraSkipped = 0;
+  for (let i = 0; i < files.length; i += MAX_FILES_PER_MESSAGE) {
+    const group = files.slice(i, i + MAX_FILES_PER_MESSAGE);
+    extraSkipped += await uploadInBatches((batch) => thread.send({ files: batch }), group);
+  }
+  return skipped + extraSkipped;
 }
 
 const client = new Client({
