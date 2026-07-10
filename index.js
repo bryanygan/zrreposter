@@ -20,6 +20,7 @@ const {
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+  presence: { status: 'invisible' },
 });
 
 async function getForumChannel(guildId, channelId) {
