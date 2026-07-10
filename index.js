@@ -62,10 +62,12 @@ async function downloadAttachments(item) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const buffer = Buffer.from(await res.arrayBuffer());
       const type = a.contentType || res.headers.get('content-type') || '';
+      const name = a.name || fileNameFromUrl(a.url);
       downloaded.push({
         buffer,
-        name: a.name || fileNameFromUrl(a.url),
+        name,
         isImage: type.startsWith('image/'),
+        isGif: type === 'image/gif' || /\.gif$/i.test(name),
       });
     } catch (err) {
       console.error(`Could not download an attachment for "${item.title}": ${err.message}`);
