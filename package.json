@@ -4,6 +4,9 @@
   "description": "Discord bot to repost forum listings between servers",
   "main": "index.js",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node index.js",
     "deploy": "node deploy-commands.js",

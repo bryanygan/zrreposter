@@ -8,7 +8,8 @@ const {
   ComponentType,
   MessageFlags,
 } = require('discord.js');
-const { SERVERS } = require('./config');
+const { SERVERS, COMMANDS } = require('./config');
+const { registerCommands } = require('./commands');
 const {
   normalizeTitle,
   classifyThreads,
@@ -166,7 +167,7 @@ async function handleBulkRepost(interaction) {
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== 'bulkrepost') return;
+  if (!(interaction.commandName in COMMANDS)) return;
   try {
     await handleBulkRepost(interaction);
   } catch (err) {
@@ -182,8 +183,34 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-client.once('ready', (c) => {
+client.once('ready', async (c) => {
   console.log(`Logged in as ${c.user.tag}`);
+  // Auto-register slash commands on startup so hosts like Railway need no
+  // separate deploy step. Set REGISTER_COMMANDS_ON_START=false to skip.
+  if (process.env.REGISTER_COMMANDS_ON_START !== 'false') {
+    try {
+      await registerCommands(
+        process.env.DISCORD_BOT_TOKEN,
+        process.env.DISCORD_APPLICAION_ID
+      );
+    } catch (err) {
+      console.error('Command registration on startup failed:', err);
+    }
+  }
 });
+
+// Minimal HTTP server so platforms like Railway detect an open port and can
+// health-check the service. The Discord gateway connection is what keeps the
+// process alive; this endpoint is just a liveness signal.
+if (process.env.PORT) {
+  require('http')
+    .createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('zrreposter ok');
+    })
+    .listen(process.env.PORT, () =>
+      console.log(`Health server listening on ${process.env.PORT}`)
+    );
+}
 
 client.login(process.env.DISCORD_BOT_TOKEN);
