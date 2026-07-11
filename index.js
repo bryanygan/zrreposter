@@ -42,6 +42,11 @@ const MAX_FILES_PER_MESSAGE = 10;
 // Timezone used to interpret date filters (e.g. "07/07"). Override with TIMEZONE.
 const TIMEZONE = process.env.TIMEZONE || 'America/New_York';
 
+// Posted as a follow-up in each thread, only for closetclearout -> zrserver.
+const TICKET_FOOTER =
+  'open a ticket to buy, any dm attempts would be ignored\n\n' +
+  'https://discord.com/channels/1108034288366125068/1108916619163467846';
+
 function fileNameFromUrl(url) {
   try {
     const path = new URL(url).pathname;
@@ -80,27 +85,31 @@ async function downloadAttachments(item) {
 // Repost one source post into the destination forum. Images are compressed only
 // as needed so that all attachments fit in the single initial thread message.
 // Returns the number of attachments skipped (failed download or un-shrinkable).
-async function repostItem(destForum, item) {
+async function repostItem(destForum, item, footerMessage) {
   const { downloaded, skipped } = await downloadAttachments(item);
   const { files, fits } = await compressToFit(downloaded, MAX_UPLOAD_BYTES);
 
+  let thread;
+  let extraSkipped = 0;
   if (files.length === 0 || (fits && files.length <= MAX_FILES_PER_MESSAGE)) {
-    await destForum.threads.create(
+    thread = await destForum.threads.create(
       buildForumThreadPayload(item.title, item.content, files)
     );
-    return skipped;
+  } else {
+    // Rare fallback: still too large for one message (e.g. a big video) or more
+    // than 10 attachments. Create the post with text, then upload the rest as
+    // replies, splitting on 413 and skipping anything that still won't fit.
+    thread = await destForum.threads.create(
+      buildForumThreadPayload(item.title, item.content, [])
+    );
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_MESSAGE) {
+      const group = files.slice(i, i + MAX_FILES_PER_MESSAGE);
+      extraSkipped += await uploadInBatches((batch) => thread.send({ files: batch }), group);
+    }
   }
 
-  // Rare fallback: still too large for one message (e.g. a big video) or more
-  // than 10 attachments. Create the post with text, then upload the rest as
-  // replies, splitting on 413 and skipping anything that still won't fit.
-  const thread = await destForum.threads.create(
-    buildForumThreadPayload(item.title, item.content, [])
-  );
-  let extraSkipped = 0;
-  for (let i = 0; i < files.length; i += MAX_FILES_PER_MESSAGE) {
-    const group = files.slice(i, i + MAX_FILES_PER_MESSAGE);
-    extraSkipped += await uploadInBatches((batch) => thread.send({ files: batch }), group);
+  if (footerMessage) {
+    await thread.send({ content: footerMessage });
   }
   return skipped + extraSkipped;
 }
@@ -258,12 +267,15 @@ async function handleBulkRepost(interaction) {
 
   await decision.update({ content: `Reposting ${items.length} post(s)…`, components: [] });
 
+  const footerMessage =
+    fromName === 'closetclearout' && toName === 'zrserver' ? TICKET_FOOTER : null;
+
   let copied = 0;
   let errors = 0;
   let skippedAttachments = 0;
   for (const item of items) {
     try {
-      skippedAttachments += await repostItem(destForum, item);
+      skippedAttachments += await repostItem(destForum, item, footerMessage);
       copied++;
     } catch (err) {
       console.error(`Failed to repost "${item.title}":`, err.message);
