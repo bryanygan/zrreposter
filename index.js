@@ -20,7 +20,7 @@ const {
   buildPreview,
 } = require('./lib/repost');
 const { compressToFit } = require('./lib/images');
-const { normalizeGoofishLinks } = require('./lib/goofish');
+const { extractGoofishLinks } = require('./lib/goofish');
 
 // Channel to watch for messy goofish.com listing links. When one is posted
 // here, the bot replies with the short canonical form. Override via env.
@@ -325,7 +325,8 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// Auto-clean messy goofish.com links posted in the watched channel: reply with
+// Auto-clean messy goofish.com links (and m.tb.cn share links, which are
+// fetched to resolve their target) posted in the watched channel: reply with
 // the short canonical form(s). Links are wrapped in <> so Discord doesn't add a
 // preview embed for each one.
 client.on('messageCreate', async (message) => {
@@ -333,7 +334,7 @@ client.on('messageCreate', async (message) => {
   if (message.guildId !== GOOFISH_WATCH_GUILD_ID) return;
   if (message.channelId !== GOOFISH_WATCH_CHANNEL_ID) return;
 
-  const links = normalizeGoofishLinks(message.content);
+  const links = await extractGoofishLinks(message.content);
   if (links.length === 0) return;
 
   try {

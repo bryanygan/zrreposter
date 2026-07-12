@@ -28,7 +28,7 @@ Only authorized users may run the commands (see `ALLOWED_USER_IDS` below).
 
 ### Goofish link cleaner
 
-In one watched channel the bot auto-detects messy Goofish (闲鱼) listing links — `ssr.m.goofish.com` SSR pages, `h5.m.goofish.com` share links full of tracking params, and `www.goofish.com` desktop links — and replies with the short canonical form for each, e.g. `https://h5.m.goofish.com/item?id=1058488603283`. Multiple links in one message are all cleaned and de-duplicated by listing id. Replies are wrapped in `<>` to suppress Discord's link-preview embeds. The watched channel defaults to the `replinks` server's links channel; override with `GOOFISH_WATCH_GUILD_ID` / `GOOFISH_WATCH_CHANNEL_ID`.
+In one watched channel the bot auto-detects messy Goofish (闲鱼) listing links — `ssr.m.goofish.com` SSR pages, `h5.m.goofish.com` share links full of tracking params, and `www.goofish.com` desktop links — and replies with the short canonical form for each, e.g. `https://h5.m.goofish.com/item?id=1058488603283`. It also handles `m.tb.cn` share links (the `【闲鱼】https://m.tb.cn/h.XXXX?tk=YYYY` form): these don't contain the listing id, so the bot fetches the link and extracts the goofish id from the page it points at. Multiple links in one message are all cleaned and de-duplicated by listing id. Replies are wrapped in `<>` to suppress Discord's link-preview embeds. The watched channel defaults to the `replinks` server's links channel; override with `GOOFISH_WATCH_GUILD_ID` / `GOOFISH_WATCH_CHANNEL_ID`.
 
 ### Images
 
