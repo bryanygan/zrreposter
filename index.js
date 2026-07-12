@@ -334,16 +334,32 @@ client.on('messageCreate', async (message) => {
   if (message.guildId !== GOOFISH_WATCH_GUILD_ID) return;
   if (message.channelId !== GOOFISH_WATCH_CHANNEL_ID) return;
 
-  const links = await extractGoofishLinks(message.content);
-  if (links.length === 0) return;
+  const msgPreview = message.content.slice(0, 200);
+  console.log(`[goofish] Processing message ${message.id} from ${message.author.tag}: "${msgPreview}"`);
+
+  let links;
+  try {
+    links = await extractGoofishLinks(message.content);
+  } catch (err) {
+    console.error(`[goofish] extractGoofishLinks threw for message ${message.id}:`, err);
+    return;
+  }
+
+  if (links.length === 0) {
+    console.log(`[goofish] No goofish links found in message ${message.id}, skipping reply.`);
+    return;
+  }
+
+  console.log(`[goofish] Found ${links.length} link(s) in message ${message.id}: ${links.join(', ')}`);
 
   try {
     await message.reply({
       content: links.map((l) => `<${l}>`).join('\n'),
       allowedMentions: { repliedUser: false },
     });
+    console.log(`[goofish] Replied to message ${message.id} with ${links.length} cleaned link(s).`);
   } catch (err) {
-    console.error('Failed to reply with cleaned goofish links:', err.message);
+    console.error(`[goofish] Failed to reply to message ${message.id}:`, err.message);
   }
 });
 
