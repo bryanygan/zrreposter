@@ -20,6 +20,14 @@ const {
   buildPreview,
 } = require('./lib/repost');
 const { compressToFit } = require('./lib/images');
+const { normalizeGoofishLinks } = require('./lib/goofish');
+
+// Channel to watch for messy goofish.com listing links. When one is posted
+// here, the bot replies with the short canonical form. Override via env.
+const GOOFISH_WATCH_GUILD_ID =
+  process.env.GOOFISH_WATCH_GUILD_ID || '1125269970381705226';
+const GOOFISH_WATCH_CHANNEL_ID =
+  process.env.GOOFISH_WATCH_CHANNEL_ID || '1125269971052802142';
 
 // Only these Discord user IDs may run the commands. Override via the
 // ALLOWED_USER_IDS env var (comma-separated) without changing code.
@@ -115,7 +123,11 @@ async function repostItem(destForum, item, footerMessage) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
   presence: { status: 'invisible' },
 });
 
@@ -310,6 +322,27 @@ client.on('interactionCreate', async (interaction) => {
         .reply({ content: msg, flags: MessageFlags.Ephemeral })
         .catch(() => {});
     }
+  }
+});
+
+// Auto-clean messy goofish.com links posted in the watched channel: reply with
+// the short canonical form(s). Links are wrapped in <> so Discord doesn't add a
+// preview embed for each one.
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+  if (message.guildId !== GOOFISH_WATCH_GUILD_ID) return;
+  if (message.channelId !== GOOFISH_WATCH_CHANNEL_ID) return;
+
+  const links = normalizeGoofishLinks(message.content);
+  if (links.length === 0) return;
+
+  try {
+    await message.reply({
+      content: links.map((l) => `<${l}>`).join('\n'),
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (err) {
+    console.error('Failed to reply with cleaned goofish links:', err.message);
   }
 });
 
