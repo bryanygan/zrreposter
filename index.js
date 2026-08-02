@@ -163,8 +163,15 @@ async function handleBulkRepost(interaction) {
     return;
   }
 
+  const isBulkrepost = interaction.commandName === 'bulkrepost';
   const fromName = interaction.options.getString('from_server', true);
   const toName = interaction.options.getString('to_server', true);
+  const fromChannelId = isBulkrepost
+    ? interaction.options.getString('from_channel_id', true)
+    : undefined;
+  const toChannelId = isBulkrepost
+    ? interaction.options.getString('to_channel_id', true)
+    : undefined;
   const includeArchived = interaction.options.getBoolean('include_archived') ?? false;
 
   let cutoff;
@@ -189,8 +196,8 @@ async function handleBulkRepost(interaction) {
   let sourceForum;
   let destForum;
   try {
-    sourceForum = await getForumChannel(from.serverId, from.forumChannelId);
-    destForum = await getForumChannel(to.serverId, to.forumChannelId);
+    sourceForum = await getForumChannel(from.serverId, fromChannelId ?? from.forumChannelId);
+    destForum = await getForumChannel(to.serverId, toChannelId ?? to.forumChannelId);
   } catch (err) {
     await interaction.editReply(`Could not access a forum channel: ${err.message}`);
     return;
