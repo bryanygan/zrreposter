@@ -10,7 +10,7 @@ const DESCRIPTIONS = {
 function buildCommands() {
   return Object.entries(COMMANDS).map(([cmdName, serverNames]) => {
     const choices = serverNames.map((name) => ({ name, value: name }));
-    return new SlashCommandBuilder()
+    const builder = new SlashCommandBuilder()
       .setName(cmdName)
       .setDescription(DESCRIPTIONS[cmdName] ?? 'Copy forum listings between servers')
       .addStringOption((opt) =>
@@ -26,7 +26,25 @@ function buildCommands() {
           .setDescription('Destination server')
           .setRequired(true)
           .addChoices(...choices)
-      )
+      );
+
+    if (cmdName === 'bulkrepost') {
+      builder
+        .addStringOption((opt) =>
+          opt
+            .setName('from_channel_id')
+            .setDescription('Source forum channel ID')
+            .setRequired(true)
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('to_channel_id')
+            .setDescription('Destination forum channel ID')
+            .setRequired(true)
+        );
+    }
+
+    builder
       .addBooleanOption((opt) =>
         opt
           .setName('include_archived')
@@ -38,8 +56,9 @@ function buildCommands() {
           .setName('posted_after')
           .setDescription('Only repost posts created after this, e.g. 50h, 2d, or 07/07')
           .setRequired(false)
-      )
-      .toJSON();
+      );
+
+    return builder.toJSON();
   });
 }
 

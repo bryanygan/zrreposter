@@ -27,12 +27,24 @@ test('to_server choices match from_server choices for each command', () => {
   }
 });
 
-test('every command exposes its options in order', () => {
-  for (const cmd of buildCommands()) {
-    assert.deepStrictEqual(
-      cmd.options.map((o) => o.name),
-      ['from_server', 'to_server', 'include_archived', 'posted_after']
-    );
+test('bulkrepost exposes from/to channel id options; testbulkrepost does not', () => {
+  const byName = Object.fromEntries(buildCommands().map((c) => [c.name, c]));
+  assert.deepStrictEqual(
+    byName.bulkrepost.options.map((o) => o.name),
+    ['from_server', 'to_server', 'from_channel_id', 'to_channel_id', 'include_archived', 'posted_after']
+  );
+  assert.deepStrictEqual(
+    byName.testbulkrepost.options.map((o) => o.name),
+    ['from_server', 'to_server', 'include_archived', 'posted_after']
+  );
+});
+
+test('bulkrepost channel id options are required strings', () => {
+  const byName = Object.fromEntries(buildCommands().map((c) => [c.name, c]));
+  for (const name of ['from_channel_id', 'to_channel_id']) {
+    const opt = byName.bulkrepost.options.find((o) => o.name === name);
+    assert.strictEqual(opt.required, true);
+    assert.strictEqual(opt.type, 3); // ApplicationCommandOptionType.String
   }
 });
 
