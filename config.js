@@ -15,11 +15,15 @@ const SERVERS = {
     serverId: '1108034288366125068',
     forumChannelId: '1228464779442655253',
   },
+  newclosetclearout: {
+    serverId: '1526411337574387722',
+    forumChannelId: '1551085739557519451',
+  },
 };
 
 // Slash command name -> server names offered as from_server / to_server choices.
 const COMMANDS = {
-  bulkrepost: ['closetclearout', 'zrserver'],
+  bulkrepost: ['closetclearout', 'zrserver', 'newclosetclearout'],
   testbulkrepost: ['replinks', 'prinsale', 'zrserver', 'closetclearout'],
 };
 

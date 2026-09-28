@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { SERVERS, COMMANDS } = require('./config');
 
-test('config has all four servers with numeric ids', () => {
+test('config has all five servers with numeric ids', () => {
   assert.deepStrictEqual(
     Object.keys(SERVERS).sort(),
-    ['closetclearout', 'prinsale', 'replinks', 'zrserver']
+    ['closetclearout', 'newclosetclearout', 'prinsale', 'replinks', 'zrserver']
   );
   for (const name of Object.keys(SERVERS)) {
     assert.match(SERVERS[name].serverId, /^\d+$/);
@@ -22,7 +22,7 @@ test('every command references only known servers', () => {
 });
 
 test('commands expose the expected server options', () => {
-  assert.deepStrictEqual(COMMANDS.bulkrepost, ['closetclearout', 'zrserver']);
+  assert.deepStrictEqual(COMMANDS.bulkrepost, ['closetclearout', 'zrserver', 'newclosetclearout']);
   assert.deepStrictEqual(COMMANDS.testbulkrepost, [
     'replinks',
     'prinsale',

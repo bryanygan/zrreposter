@@ -10,6 +10,7 @@ test('buildCommands builds both commands with expected choices', () => {
   assert.deepStrictEqual(Object.keys(byName).sort(), ['bulkrepost', 'testbulkrepost']);
   assert.deepStrictEqual(fromChoices(byName.bulkrepost).sort(), [
     'closetclearout',
+    'newclosetclearout',
     'zrserver',
   ]);
   assert.deepStrictEqual(fromChoices(byName.testbulkrepost).sort(), [
