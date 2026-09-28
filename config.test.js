@@ -28,5 +28,6 @@ test('commands expose the expected server options', () => {
     'prinsale',
     'zrserver',
     'closetclearout',
+    'newclosetclearout',
   ]);
 });

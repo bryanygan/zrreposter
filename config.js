@@ -24,7 +24,7 @@ const SERVERS = {
 // Slash command name -> server names offered as from_server / to_server choices.
 const COMMANDS = {
   bulkrepost: ['closetclearout', 'zrserver', 'newclosetclearout'],
-  testbulkrepost: ['replinks', 'prinsale', 'zrserver', 'closetclearout'],
+  testbulkrepost: ['replinks', 'prinsale', 'zrserver', 'closetclearout', 'newclosetclearout'],
 };
 
 module.exports = { SERVERS, COMMANDS };
